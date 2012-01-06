@@ -10,7 +10,7 @@ exports.Snowflakes = Montage.create(Component, {
 
     _isAnimating: {
         enumerable: false,
-        value: true
+        value: false
     },
 
     isAnimating: {
@@ -101,7 +101,20 @@ exports.Snowflakes = Montage.create(Component, {
 
             this.snowflakes = snowflake;
             this._previousTime = new Date().getTime();
+
+			this.snowflakeRepetition.addEventListener("firstDraw",this,false);
         }
+    },
+	handleSnowflakeRepetitionFirstDraw: {
+        enumerable: false,
+		value: function(event) {
+			this._isReadyToAnimate = true;
+            this.needsDraw = true;
+		}
+	},
+    _isReadyToAnimate: {
+        enumerable: false,
+        value: false
     },
 
     _snowflakeElements: {
@@ -145,6 +158,10 @@ exports.Snowflakes = Montage.create(Component, {
     draw: {
         enumerable: false,
         value: function() {
+	        if (!this._isReadyToAnimate) {
+    			return;
+			}
+	
             var time = new Date().getTime(),
                 time2 = time - this._previousTime,
                 snowflakes = this.snowflakes,
@@ -153,7 +170,10 @@ exports.Snowflakes = Montage.create(Component, {
                 time2 = 200;
             }
             this._previousTime = time;
-            this._snowflakeElements = this.snowflakeRepetition.element.querySelectorAll(".snowflake");
+			if(!this._snowflakeElements) {
+	            this._snowflakeElements = this.snowflakeRepetition.element.querySelectorAll(".snowflake");
+			}
+			//console.log("this._snowflakeElements.length is "+this._snowflakeElements.length);
             for (i=0; i<this._snowflakeElements.length; i++) {
                 snowflakes[i].time += time2;
                 snowflakes[i].y += time2 / 60;
