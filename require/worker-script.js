@@ -61,6 +61,19 @@ console = {
                 }
             })
         });
+    },
+    warn: function () {
+        postMessage({
+            type: "console",
+            method: "warn",
+            args: Array.prototype.map.call(arguments, function (value) {
+                if (typeof value === "string") {
+                    return value;
+                } else {
+                    return JSON.stringify(value);
+                }
+            })
+        });
     }
 };
 

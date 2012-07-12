@@ -43,7 +43,6 @@ var Montage = require("montage").Montage,
     Serializer = require("core/serializer").Serializer,
     Deserializer = require("core/deserializer").Deserializer,
     logger = require("core/logger").logger("binding"),
-    defaultEventManager = require("core/event/event-manager").defaultEventManager,
     AT_TARGET = 2,
     UNDERSCORE = "_";
 
