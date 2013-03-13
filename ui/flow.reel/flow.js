@@ -42,6 +42,7 @@ var Flow = exports.Flow = Montage.create(Component, {
     didCreate: {
         value: function () {
             Component.didCreate.call(this); // super
+            this._visibleIndexes = [];
             this._slideOffsets = {};
             this.defineBinding("_numberOfIterations", {
                 "<-": "_repetition.contentController.organizedContent.length"
@@ -71,9 +72,12 @@ var Flow = exports.Flow = Montage.create(Component, {
         value: "linear"
     },
 
+    // TODO doc
     /**
-        Drag mode is an experimental feature in development
-    */
+     * One of "linear" or "drag".
+     *
+     * Drag mode is an experimental feature in development
+     */
     scrollingMode: {
         serializable: true,
         get: function () {
@@ -93,9 +97,10 @@ var Flow = exports.Flow = Montage.create(Component, {
         value: [-300, 0]
     },
 
+    // TODO doc
     /**
-        Only applicable if linear scrollingMode is selected
-    */
+     * Only applicable with the "linear" <code>scrollingMode</code>.
+     */
     linearScrollingVector: {
         seriazable: true,
         get: function () {
@@ -110,9 +115,10 @@ var Flow = exports.Flow = Montage.create(Component, {
         value: null
     },
 
+    // TODO doc
     /**
-        In miliseconds
-    */
+     * In miliseconds
+     */
     momentumDuration: {
         serializable: true,
         value: 650
@@ -122,9 +128,10 @@ var Flow = exports.Flow = Montage.create(Component, {
         value: null
     },
 
+    // TODO doc
     /**
-        An array of FlowBezierSpline objects
-    */
+     * An array of FlowBezierSpline objects
+     */
     splinePaths: {
         enumerable: false,
         get: function () {
@@ -139,9 +146,15 @@ var Flow = exports.Flow = Montage.create(Component, {
     },
 
     /**
-        Creates a FlowBezierSpline with data from a path in the serialization and appends it to splinePaths array
-    */
-    appendPath: {
+     * Creates a FlowBezierSpline with data from a path in the serialization
+     * and appends it to splinePaths array.
+     *
+     * The public interface for modifying the paths of a Flow is to set the
+     * "paths" propery.
+     *
+     * @private
+     */
+    _appendPath: {
         value: function (path) {
             var splinePath = FlowBezierSpline.create(),
                 pathKnots = path.knots,
@@ -189,6 +202,9 @@ var Flow = exports.Flow = Montage.create(Component, {
         value: null
     },
 
+    // TODO doc
+    /**
+     */
     paths: { // TODO: listen for changes?
         get: function () {
             var length = this.splinePaths.length,
@@ -250,7 +266,7 @@ var Flow = exports.Flow = Montage.create(Component, {
             this._splinePaths = [];
             this._paths = [];
             for (i = 0; i < length; i++) {
-                this.appendPath(value[i]);
+                this._appendPath(value[i]);
             }
             this.needsDraw = true;
         }
@@ -278,6 +294,9 @@ var Flow = exports.Flow = Montage.create(Component, {
         value: 0
     },
 
+    // TODO doc
+    /**
+     */
     cameraPosition: {
         get: function () {
             return this._cameraPosition;
@@ -289,6 +308,9 @@ var Flow = exports.Flow = Montage.create(Component, {
         }
     },
 
+    // TODO doc
+    /**
+     */
     cameraTargetPoint: {
         get: function () {
             return this._cameraTargetPoint;
@@ -300,6 +322,9 @@ var Flow = exports.Flow = Montage.create(Component, {
         }
     },
 
+    // TODO doc
+    /**
+     */
     cameraFov: {
         get: function () {
             return this._cameraFov;
@@ -311,6 +336,9 @@ var Flow = exports.Flow = Montage.create(Component, {
         }
     },
 
+    // TODO doc
+    /**
+     */
     cameraRoll: {
         get: function () {
             return this._cameraRoll;
@@ -326,6 +354,9 @@ var Flow = exports.Flow = Montage.create(Component, {
         value: 0
     },
 
+    // TODO doc
+    /**
+     */
     stride: {
         get: function () {
             return this._stride;
@@ -343,6 +374,9 @@ var Flow = exports.Flow = Montage.create(Component, {
         value: "500ms"
     },
 
+    // TODO doc
+    /**
+     */
     scrollingTransitionDuration: { // TODO: think about using the Date Converter
         get: function () {
             return this._scrollingTransitionDuration;
@@ -403,6 +437,9 @@ var Flow = exports.Flow = Montage.create(Component, {
         }
     },
 
+    // TODO doc
+    /**
+     */
     scrollingTransitionTimingFunction: {
         get: function () {
             return this._scrollingTransitionTimingFunction;
@@ -483,6 +520,9 @@ var Flow = exports.Flow = Montage.create(Component, {
         }
     },
 
+    // TODO doc
+    /**
+     */
     startScrollingIndexToOffset: { // TODO: Fire scrollingTransitionStart event
         value: function (index, offset) {
             this._scrollingOrigin = this.scroll;
@@ -518,6 +558,9 @@ var Flow = exports.Flow = Montage.create(Component, {
         value: [200, 200, 0]
     },
 
+    // TODO doc
+    /**
+     */
     boundingBoxSize: {
         serializable: true,
         get: function () {
@@ -533,6 +576,9 @@ var Flow = exports.Flow = Montage.create(Component, {
         value: 283
     },
 
+    // TODO doc
+    /**
+     */
     elementsBoundingSphereRadius: {
         get: function () {
             return this._elementsBoundingSphereRadius;
@@ -727,6 +773,9 @@ var Flow = exports.Flow = Montage.create(Component, {
         }
     },
 
+    /**
+     * @private
+     */
     prepareForDraw: {
         value: function () {
             var self = this,
@@ -740,41 +789,63 @@ var Flow = exports.Flow = Montage.create(Component, {
         }
     },
 
-    _updateIndexMap: {
-        value: function (newIndexes, newIndexesHash) {
-            // TODO replace
-            return;
-            var currentIndexMap = this._repetition.indexMap,
-                emptySpaces = [],
+    _updateVisibleIndexes: {
+        value: function (newVisibleIndexes, newContentIndexes) {
+            var oldVisibleIndexes = this._visibleIndexes,
+                oldContentIndexes = {},
+                oldIndexesLength = oldVisibleIndexes && !isNaN(oldVisibleIndexes.length) ? oldVisibleIndexes.length : 0,
+                holes = [],
+                optimizedVisibleIndexes = [],
                 j,
-                i,
-                currentIndexCount = currentIndexMap && !isNaN(currentIndexMap.length) ? currentIndexMap.length : 0;
+                i;
 
-            for (i = 0; i < currentIndexCount; i++) {
-                //The likelyhood that newIndexesHash had a number-turned-to-string property that wasn't his own is pretty slim as it's provided internally.
-                //if (newIndexesHash.hasOwnProperty(currentIndexMap[i])) {
-                if (typeof newIndexesHash[currentIndexMap[i]] === "number") {
-                    newIndexes[newIndexesHash[currentIndexMap[i]]] = null;
+            // Create a reverse lookup table for visible indexes to content indexes
+            for (i = 0; i < oldIndexesLength; i++) {
+                oldContentIndexes[oldVisibleIndexes[i]] = i;
+            }
+
+            for (i = 0; i < oldIndexesLength; i++) {
+                // # Legend
+                // _: the previously defined expression in this legend
+                // oldVisibleIndexes[i]: the index of the content that was at
+                // visible index "i".
+                // newContentIndexes[_]: the position that the content should
+                // be in now, or undefined if the content is no longer visible.
+                // newVisibleIndexes[_]: knowing that the content index that
+                // was at visible index "i" in oldVisibleIndexes is now at
+                // index "_" in newVisibleIndexes, set this to null as a
+                // sentinel indicating "no change in position"
+
+                // The likelyhood that newContentIndexes had a
+                // number-turned-to-string property that wasn't his own is
+                // pretty slim as it's provided internally.
+                // if (newContentIndexes.hasOwnProperty(oldVisibleIndexes[i])) {
+                if (typeof newContentIndexes[oldVisibleIndexes[i]] === "number") {
+                    newVisibleIndexes[newContentIndexes[oldVisibleIndexes[i]]] = null;
                 } else {
-                    emptySpaces.push(i);
+                    holes.push(i);
                 }
             }
-            for (i = j = 0; (j < emptySpaces.length) && (i < newIndexes.length); i++) {
-                if (newIndexes[i] !== null) {
-                    this._repetition.mapIndexToIndex(emptySpaces[j], newIndexes[i], false);
+
+            for (i = j = 0; (j < holes.length) && (i < newVisibleIndexes.length); i++) {
+                if (newVisibleIndexes[i] !== null) {
+                    optimizedVisibleIndexes[holes[j]] = newVisibleIndexes[i];
                     j++;
                 }
             }
-            for (j = currentIndexCount; i < newIndexes.length; i++) {
-                if (newIndexes[i] !== null) {
-                    this._repetition.mapIndexToIndex(j,newIndexes[i], false);
+            for (j = oldIndexesLength; i < newVisibleIndexes.length; i++) {
+                if (newVisibleIndexes[i] !== null) {
+                    optimizedVisibleIndexes[j] = newVisibleIndexes[i];
                     j++;
                 }
             }
-            this._repetition.refreshIndexMap();
+            this._visibleIndexes.swap(0, oldIndexesLength, optimizedVisibleIndexes);
         }
     },
 
+    /**
+     * @private
+     */
     willDraw: {
         value: function () {
             var intersections,
@@ -788,10 +859,10 @@ var Flow = exports.Flow = Montage.create(Component, {
                 mod,
                 div,
                 iterations,
-                newIndexMap = [],
+                newVisibleIndexes = [],
+                newContentIndexes = {},
                 time,
                 interpolant,
-                newIndexesHash = {},
                 paths = this._paths,
                 pathsLength = paths.length,
                 splinePaths = this.splinePaths;
@@ -827,18 +898,21 @@ var Flow = exports.Flow = Montage.create(Component, {
                         }
                         for (j = startIndex; j < endIndex; j++) {
                             index = j * pathsLength + k;
-                            if (typeof newIndexesHash[index] === "undefined") {
-                                newIndexesHash[index] = newIndexMap.length;
-                                newIndexMap.push(index);
+                            if (typeof newContentIndexes[index] === "undefined") {
+                                newContentIndexes[index] = newVisibleIndexes.length;
+                                newVisibleIndexes.push(index);
                             }
                         }
                     }
                 }
             }
-            this._updateIndexMap(newIndexMap, newIndexesHash);
+            this._updateVisibleIndexes(newVisibleIndexes, newContentIndexes);
         }
     },
 
+    /**
+     * @private
+     */
     draw: {
         value: function () {
             var i,
@@ -855,14 +929,14 @@ var Flow = exports.Flow = Montage.create(Component, {
                 positionKeys,
                 positionKeyCount,
                 jPositionKey,
-                indexMap = this._repetition._indexMap,
+                visibleIndexes = this._visibleIndexes,
                 indexTime,
                 rotation,
                 offset,
                 epsilon = .00001;
 
             var time = Date.now(),
-                iterations = 6,
+                iterations = 6, // TODO what is this magic number?
                 interval1 = this.lastDrawTime ? (time - this.lastDrawTime) * .018 * this._elasticScrollingSpeed : 0,
                 interval = 1 - (interval1 / iterations),
                 offset1, offset2, resultOffset,
@@ -912,8 +986,8 @@ var Flow = exports.Flow = Montage.create(Component, {
             }
             if (this.splinePaths.length) {
                 for (i = 0; i < length; i++) {
-                    // offset = this.offset(indexMap[i]);
-                    offset = this.offset(i); // TODO replace this line with previous to reenable frustrum culling with the index map
+                    offset = this.offset(i); // TODO reenable next line
+                    //offset = this.offset(visibleIndexes[i]);
                     pathIndex = offset.pathIndex;
                     slideTime = offset.slideTime;
                     indexTime = this._splinePaths[pathIndex]._convertSplineTimeToBezierIndexTime(slideTime);
@@ -1015,24 +1089,40 @@ var Flow = exports.Flow = Montage.create(Component, {
         }
     },
 
+    // TODO doc
+    /**
+     */
     contentController: {
         value: null
     },
 
+    // TODO doc
+    /**
+     */
     isSelectionEnabled: {
         value: null
     },
 
+    // TODO doc
+    /**
+     */
     selectedIndexes: {
         serializable: false,
         value: null
     },
 
+    // TODO doc
+    /**
+     */
     activeIndexes: {
         serializable: false,
         value: null
     },
 
+    // TODO remove possibly redundant with binding to objectAtCurrentIteration
+    /**
+     * @private
+     */
     observeProperty: {
         value: function (key, emit, source, parameters, beforeChange) {
             if (key === "currentIteration" || key === "objectAtCurrentIteration" || key === "contentAtCurrentIteration") {
@@ -1064,6 +1154,19 @@ var Flow = exports.Flow = Montage.create(Component, {
         value: 0
     },
 
+    /**
+     * The number of visible iterations after frustrum culling, which is
+     * subject to variation depending on the scroll offset.
+     *
+     * <pre>
+     * +----+ +----+ +----+ +----+ +----+
+     * |    | |    | |    | |    | |    | length = 5
+     * +----+ +----+ +----+ +----+ +----+
+     * --+ +----+ +----+ +----+ +----+ +-
+     *   | |    | |    | |    | |    | |  length = 6
+     * --+ +----+ +----+ +----+ +----+ +-
+     * </pre>
+     */
     length: {
         get: function () {
             return this._length;
@@ -1077,10 +1180,16 @@ var Flow = exports.Flow = Montage.create(Component, {
         }
     },
 
+    // TODO doc
+    /**
+     */
     _scroll: {
         value: 0
     },
 
+    // TODO doc
+    /**
+     */
     _range: {
         value: 20
     },
@@ -1089,6 +1198,9 @@ var Flow = exports.Flow = Montage.create(Component, {
         value: false
     },
 
+    // TODO doc
+    /**
+     */
     hasElasticScrolling: {
         get: function () {
             return this._hasElasticScrolling;
@@ -1205,6 +1317,9 @@ var Flow = exports.Flow = Montage.create(Component, {
         }
     },
 
+    // TODO doc
+    /**
+     */
     scroll: {
         get: function () {
             return this._scroll;
@@ -1255,6 +1370,9 @@ var Flow = exports.Flow = Montage.create(Component, {
         value: true
     },
 
+    // TODO doc
+    /**
+     */
     isInputEnabled: {
         get: function () {
             return this._isInputEnabled;
@@ -1272,6 +1390,9 @@ var Flow = exports.Flow = Montage.create(Component, {
         value: 0
     },
 
+    // TODO doc
+    /**
+     */
     draggedSlideIndex: {
         get: function () {
             return this._draggedSlideIndex;
@@ -1308,6 +1429,9 @@ var Flow = exports.Flow = Montage.create(Component, {
         value: null
     },
 
+    // TODO doc
+    /**
+     */
     offset: {
         enumerable: false,
         value: function (slideIndex) {
@@ -1322,6 +1446,9 @@ var Flow = exports.Flow = Montage.create(Component, {
         }
     },
 
+    /**
+     * @private
+     */
     serializeSelf: {
         value: function(serializer) {
             serializer.setAllProperties();

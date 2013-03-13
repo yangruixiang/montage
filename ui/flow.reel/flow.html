@@ -40,12 +40,21 @@ POSSIBILITY OF SUCH DAMAGE.
                 "properties": {
                     "element": {
                         "#": "montage-flow-repetition"
+                    },
+                    "contentController": {
+                        "@": "frustrumController"
                     }
                 },
                 "bindings": {
-                    "contentController": {"<-": "@owner.contentController"},
-                    "content": {"<-": "@owner.content"},
                     "isSelectionEnabled": {"<-": "@owner.isSelectionEnabled"}
+                }
+            },
+            "frustrumController": {
+                "prototype": "core/range-controller",
+                "bindings": {
+                    "content": {"<-": "@owner.contentController.organizedContent ?? @owner.content"},
+                    "selection": {"<-": "@owner.contentController.selection"},
+                    "visibleIndexes": {"<-": "@owner._visibleIndexes"}
                 }
             },
             "flowTranslateComposer": {
@@ -86,6 +95,9 @@ POSSIBILITY OF SUCH DAMAGE.
                     },
                     "_cameraElement": {
                         "#": "montage-flow-camera"
+                    },
+                    "_frustrumController": {
+                        "@": "frustrumController"
                     }
                 },
                 "bindings": {
