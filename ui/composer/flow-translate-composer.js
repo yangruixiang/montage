@@ -132,8 +132,8 @@ var FlowTranslateComposer = exports.FlowTranslateComposer = Montage.create(Trans
                 this._pointerStartY = this._pointerY = point.y - borderTop - paddingTop;
                 this._contentOffsetX = this._startPageX - this._pointerStartX;
                 this._contentOffsetY = this._startPageY - this._pointerStartY;
-                // TODO uncomment to reenable frustrum culling
-                // this._computePointedElement();
+                // TODO @romancortes, should this be here? @kriskowal
+                this._computePointedElement();
             //}
             this._startPageX = this._pageX = x;
             this._startPageY = this._pageY = y;
@@ -746,8 +746,8 @@ var FlowTranslateComposer = exports.FlowTranslateComposer = Montage.create(Trans
                     perspective = (this._element.offsetHeight * .5) / Math.tan((flow.cameraFov * flow._doublePI) * (1 / 720)),
                     z2, tmp,
                     splines = [],
-                    indexMap = flow._repetition._indexMap,
-                    length = indexMap.length,
+                    visibleIndexes = flow._visibleIndexes,
+                    length = visibleIndexes.length,
                     pathIndex,
                     slideIndex,
                     slideTime,
@@ -778,7 +778,7 @@ var FlowTranslateComposer = exports.FlowTranslateComposer = Montage.create(Trans
                     ]);
                 }
                 for (i = 0; i < length; i++) {
-                    offset = this._flow.offset(indexMap[i]);
+                    offset = this._flow.offset(visibleIndexes[i]);
                     pathIndex = offset.pathIndex;
                     slideTime = offset.slideTime;
                     indexTime = splines[pathIndex]._convertSplineTimeToBezierIndexTime(slideTime);
@@ -795,7 +795,7 @@ var FlowTranslateComposer = exports.FlowTranslateComposer = Montage.create(Trans
                         if (distance = this._rayRectangleIntersection(rayVector, corner, edge1, edge2)) {
                             if (distance < minDistance) {
                                 minDistance = distance;
-                                closerIndex = indexMap[i];
+                                closerIndex = visibleIndexes[i];
                                 this._pointerIntersectionPosition = this._rayRectangleIntersectionPosition(rayVector, corner, edge1, edge2);
                             }
                         }

@@ -42,9 +42,17 @@ var Flow = exports.Flow = Montage.create(Component, {
     didCreate: {
         value: function () {
             Component.didCreate.call(this); // super
+            // The template has a binding from these visibleIndexes to
+            // the frustrum controller's visibleIndexes.  We manage the
+            // array within the flow and use it also in the flow
+            // translate composer.
+            this._visibleIndexes = [];
+            // Tracks the elastic scrolling offsets relative to their
+            // corresponding non-elastic scrolling positions on their
+            // FlowBezierSpline.
             this._slideOffsets = {};
             this.defineBinding("_numberOfIterations", {
-                "<-": "_repetition.contentController.organizedContent.length"
+                "<-": "_frustrumController.content.length"
             });
             // dispatches handle_numberOfIterationsChange
             this.addOwnPropertyChangeListener("_numberOfIterations", this);
@@ -915,38 +923,95 @@ var Flow = exports.Flow = Montage.create(Component, {
         }
     },
 
-    _updateIndexMap: {
-        value: function (newIndexes, newIndexesHash) {
-            // TODO replace
-            return;
-            var currentIndexMap = this._repetition.indexMap,
-                emptySpaces = [],
+    /**
+     * The content that governs the repetition is plucked from the original
+     * content using the frustrumController's visibleIndexes array, which we
+     * retain a copy of on Flow.
+     *
+     * In order to prevent jitter and minimize thrashing on the DOM, the Flow
+     * attempts to reuse every iteration, favoring moving them around with CSS
+     * transforms over moving them around on the document, and favoring
+     * rebinding over removing an iteration that is leaving and injecting an
+     * iteration for content entering.
+     *
+     * To those ends, this algorithm takes the idealized array of new visible
+     * indexes, as computed by willDraw, and transforms the current visible
+     * indexes array without moving any content that is in both
+     * the old and new arrays.  Instead, it finds all of the positions that
+     * have content that is leaving the Flow, and fills those "holes" with
+     * content entering the Flow.
+     *
+     * To accomplish this, the algorithm takes as input the
+     * <code>newVisibleIndexes</code> and its inverse-lookup table,
+     * <code>newContentIndexes</code>.  It uses the content indexes so that it
+     * can triangulate whether the content at any particular visible index will
+     * be retained in the new visible indexes at any position.  Otherwise,
+     * there will be a hole at that index.
+     *
+     * Conceptually there are two domains of indexes: content indexes and
+     * visible indexes.  The visible indexes correspond to positions within the
+     * repetition.  The content indexes correspond to where the content exists
+     * within the backing organized content array.  There are both new and old
+     * forms of both indexes.  We use the <em>new, visible</em> indexes, the
+     * <em>new, content</em> indexes, and the <em>old, content</code> indexes
+     * to triangulate.
+     *
+     * <pre>
+     * OVI -> OCI
+     *  ^      v  ?
+     * NVI    NCI
+     * </pre>
+     */
+    _updateVisibleIndexes: {
+        value: function (newVisibleIndexes, newContentIndexes) {
+            var oldVisibleIndexes = this._visibleIndexes,
+                oldIndexesLength = oldVisibleIndexes && !isNaN(oldVisibleIndexes.length) ? oldVisibleIndexes.length : 0,
+                holes = [],
                 j,
-                i,
-                currentIndexCount = currentIndexMap && !isNaN(currentIndexMap.length) ? currentIndexMap.length : 0;
+                i;
 
-            for (i = 0; i < currentIndexCount; i++) {
-                //The likelyhood that newIndexesHash had a number-turned-to-string property that wasn't his own is pretty slim as it's provided internally.
-                //if (newIndexesHash.hasOwnProperty(currentIndexMap[i])) {
-                if (typeof newIndexesHash[currentIndexMap[i]] === "number") {
-                    newIndexes[newIndexesHash[currentIndexMap[i]]] = null;
+            // Search for viable holes, leave content at the same visible index
+            // whenever possible.
+            for (i = 0; i < oldIndexesLength; i++) {
+                // # Legend
+                // _: the previously defined expression in this legend
+                // oldVisibleIndexes[i]: the index of the content that was at
+                // visible index "i".
+                // newContentIndexes[_]: the position that the content should
+                // be in now, or undefined if the content is no longer visible.
+                // newVisibleIndexes[_]: knowing that the content index that
+                // was at visible index "i" in oldVisibleIndexes is now at
+                // index "_" in newVisibleIndexes, set this to null as a
+                // sentinel indicating "no change in position"
+
+                // The likelyhood that newContentIndexes had a
+                // number-turned-to-string property that wasn't his own is
+                // pretty slim as it's provided internally.
+                // if (newContentIndexes.hasOwnProperty(oldVisibleIndexes[i])) {
+                if (typeof newContentIndexes[oldVisibleIndexes[i]] === "number") {
+                    newVisibleIndexes[newContentIndexes[oldVisibleIndexes[i]]] = null;
                 } else {
-                    emptySpaces.push(i);
+                    holes.push(i);
                 }
             }
-            for (i = j = 0; (j < emptySpaces.length) && (i < newIndexes.length); i++) {
-                if (newIndexes[i] !== null) {
-                    this._repetition.mapIndexToIndex(emptySpaces[j], newIndexes[i], false);
+
+            // Fill the holes
+            for (i = j = 0; (j < holes.length) && (i < newVisibleIndexes.length); i++) {
+                if (newVisibleIndexes[i] !== null) {
+                    oldVisibleIndexes.set(holes[j], newVisibleIndexes[i]);
                     j++;
                 }
             }
-            for (j = currentIndexCount; i < newIndexes.length; i++) {
-                if (newIndexes[i] !== null) {
-                    this._repetition.mapIndexToIndex(j,newIndexes[i], false);
+            // Add new values to the end if the visible indexes have grown
+            for (j = oldIndexesLength; i < newVisibleIndexes.length; i++) {
+                if (newVisibleIndexes[i] !== null) {
+                    oldVisibleIndexes.set(j,  newVisibleIndexes[i]);
                     j++;
                 }
             }
-            this._repetition.refreshIndexMap();
+
+            // Don't bother triming the excess. We just make them invisible and
+            // leave them on the origin.
         }
     },
 
@@ -966,14 +1031,17 @@ var Flow = exports.Flow = Montage.create(Component, {
                 mod,
                 div,
                 iterations,
-                newIndexMap = [],
+                newVisibleIndexes = [],
+                // newContentIndexes is a reverse-lookup hash of
+                // newVisibleIndexes, which we keep in sync manually.
+                newContentIndexes = {},
                 time,
                 interpolant,
-                newIndexesHash = {},
                 paths = this._paths,
                 pathsLength = paths.length,
                 splinePaths = this.splinePaths;
 
+            // Manage scroll animation
             if (this._isTransitioningScroll) {
                 time = (Date.now() - this._scrollingStartTime) / this._scrollingTransitionDurationMiliseconds; // TODO: division by zero
                 interpolant = this._computeCssCubicBezierValue(time, this._scrollingTransitionTimingFunctionBezier);
@@ -984,6 +1052,8 @@ var Flow = exports.Flow = Montage.create(Component, {
                     this._isTransitioningScroll = false;
                 }
             }
+
+            // Compute which slides are in view
             this._width = this._element.clientWidth;
             this._height = this._element.clientHeight;
             if (splinePaths.length) {
@@ -1005,15 +1075,18 @@ var Flow = exports.Flow = Montage.create(Component, {
                         }
                         for (j = startIndex; j < endIndex; j++) {
                             index = j * pathsLength + k;
-                            if (typeof newIndexesHash[index] === "undefined") {
-                                newIndexesHash[index] = newIndexMap.length;
-                                newIndexMap.push(index);
+                            // If the content index is not yet in the visible
+                            // indexes, add it.
+                            if (typeof newContentIndexes[index] === "undefined") {
+                                newContentIndexes[index] = newVisibleIndexes.length;
+                                newVisibleIndexes.push(index);
                             }
                         }
                     }
                 }
             }
-            this._updateIndexMap(newIndexMap, newIndexesHash);
+
+            this._updateVisibleIndexes(newVisibleIndexes, newContentIndexes);
         }
     },
 
@@ -1036,13 +1109,17 @@ var Flow = exports.Flow = Montage.create(Component, {
                 positionKeys,
                 positionKeyCount,
                 jPositionKey,
-                indexMap = this._repetition._indexMap,
+                visibleIndexes = this._visibleIndexes,
                 indexTime,
                 rotation,
                 offset,
                 epsilon = .00001;
 
             var time = Date.now(),
+                // "iterations" this is a first approximation of the number of
+                // iterations that the flow will need, used to "prime the pump"
+                // when using numerical analysis to zero in on the actual
+                // number of visible iterations.
                 iterations = 6,
                 interval1 = this.lastDrawTime ? (time - this.lastDrawTime) * .018 * this._elasticScrollingSpeed : 0,
                 interval = 1 - (interval1 / iterations),
@@ -1093,8 +1170,7 @@ var Flow = exports.Flow = Montage.create(Component, {
             }
             if (this.splinePaths.length) {
                 for (i = 0; i < length; i++) {
-                    // offset = this.offset(indexMap[i]);
-                    offset = this.offset(i); // TODO replace this line with previous to reenable frustrum culling with the index map
+                    offset = this.offset(visibleIndexes[i]);
                     pathIndex = offset.pathIndex;
                     slideTime = offset.slideTime;
                     indexTime = this._splinePaths[pathIndex]._convertSplineTimeToBezierIndexTime(slideTime);
@@ -1121,10 +1197,10 @@ var Flow = exports.Flow = Montage.create(Component, {
                     element.setAttribute("style", "-webkit-transform:scale3d(0,0,0);opacity:0");
                 }
             }
-            // TODO conditionalize:
-            if (false) {
-                this.needsDraw = true;
-            }
+            // TODO there is a bug that a Flow will not render any iterations
+            // on the first draw.  Continuous redraw fixes the problem, but we
+            // need a more elegant solution.
+            this.needsDraw = true;
         }
     },
 
