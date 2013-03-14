@@ -447,16 +447,15 @@ var Flow = exports.Flow = Montage.create(Component, {
         set: function (duration) {
             var durationString = duration + "",
                 length = durationString.length,
-                value;
+                value,
+                match;
 
-            if ((length >= 2) && (durationString[length - 1] === "s")) {
-                if ((length >= 3) && (durationString[length - 2] === "m")) {
-                    value = durationString.substr(0, length - 2) - 0;
-                } else {
-                    value = durationString.substr(0, length - 1) * 1000;
-                }
+            if (match = /^(\d+)ms$/.exec(durationString)) {
+                value = +match[1];
+            } else if (match = /^(\d+)s$/.exec(durationString)) {
+                value = +match[1] * 1000;
             } else {
-                value = durationString - 0;
+                value = +durationString;
                 durationString += "ms";
             }
             if (!isNaN(value) && (this._scrollingTransitionDurationMiliseconds !== value)) {
