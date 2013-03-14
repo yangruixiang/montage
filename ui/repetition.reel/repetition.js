@@ -274,17 +274,17 @@ var Iteration = exports.Iteration = Montage.create(Montage, {
      */
     retractFromDocument: {
         value: function () {
-            var index = this._drawnIndex;
+            var drawnIndex = this._drawnIndex;
             var repetition = this.repetition;
             var element = repetition.element;
-            var topBoundary = repetition._boundaries[index];
-            var bottomBoundary = repetition._boundaries[index + 1];
+            var topBoundary = repetition._boundaries[drawnIndex];
+            var bottomBoundary = repetition._boundaries[drawnIndex + 1];
 
             // Remove the elements between the boundaries.  Also remove the top
             // boundary and adjust the boundaries array accordingly so future
             // injections and retractions can find their corresponding
             // boundaries.
-            repetition._boundaries.splice(index, 1);
+            repetition._boundaries.splice(drawnIndex, 1);
             var fragment = this._fragment;
             var child = topBoundary.nextSibling;
             while (child != bottomBoundary) {
@@ -296,8 +296,8 @@ var Iteration = exports.Iteration = Montage.create(Montage, {
             element.removeChild(topBoundary);
 
             this._drawnIndex = null;
-            repetition._drawnIterations.splice(index, 1);
-            repetition._updateDrawnIndexes(index);
+            repetition._drawnIterations.splice(drawnIndex, 1);
+            repetition._updateDrawnIndexes(drawnIndex);
         }
     },
 
@@ -1155,7 +1155,7 @@ var Repetition = exports.Repetition = Montage.create(Component, {
                 this._contentForIteration.set(iteration, content);
                 return iteration;
             }, this));
-            // Update indexes for all subsequent iterations
+            // Update indexes for all involved and subsequent iterations
             this._updateIndexes(index);
 
             this.needsDraw = true;
@@ -1305,8 +1305,9 @@ var Repetition = exports.Repetition = Montage.create(Component, {
 
             // Retract iterations that should no longer be visible
             for (var index = this._drawnIterations.length - 1; index >= 0; index--) {
-                if (this._drawnIterations[index].index == null) {
-                    this._drawnIterations[index].retractFromDocument();
+                var iteration = this._drawnIterations[index];
+                if (iteration.index == null) {
+                    iteration.retractFromDocument();
                 }
             }
 
@@ -1318,6 +1319,9 @@ var Repetition = exports.Repetition = Montage.create(Component, {
             ) {
                 var iteration = this.iterations[index];
                 if (iteration._drawnIndex !== iteration.index) {
+                    if (iteration._drawnIndex != null) {
+                        iteration.retractFromDocument();
+                    }
                     iteration.injectIntoDocument(index);
                 }
             }
